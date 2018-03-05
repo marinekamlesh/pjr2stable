@@ -64,10 +64,6 @@ SMPCache::SMPCache(SMemorySystem *dms, const char *section, const char *name)
     , writeRetry("%s:writeRetry", name)
     , invalDirty("%s:invalDirty", name)
     , allocDirty("%s:allocDirty", name)
-    , compMiss("%s:compMiss", name)
-    , capMiss("%s:capMiss", name)
-    , confMiss("%s:confMiss", name)
-
 {
     MemObj *lowerLevel = NULL;
 

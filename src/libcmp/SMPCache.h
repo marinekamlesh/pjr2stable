@@ -98,10 +98,6 @@ protected:
     GStatsCntr invalDirty;
     GStatsCntr allocDirty;
 
-    GStatsCntr compMiss;
-    GStatsCntr capMiss;
-    GStatsCntr confMiss; 
-
 #ifdef SESC_ENERGY
     static unsigned cacheID;
     unsigned myID;
