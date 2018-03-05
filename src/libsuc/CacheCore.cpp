@@ -222,6 +222,15 @@ CacheGeneric<State, Addr_t, Energy> *CacheGeneric<State, Addr_t, Energy>::create
  *********************************************************/
 
 template<class State, class Addr_t, bool Energy>
+void CacheAssoc<State, Addr_t, Energy>::createStats(const char *section, const char *name)
+{
+    CacheGeneric<State, Addr_t, Energy>::createStats(section, name);
+    compMiss = new GStatsCntr("%s:compMiss", name);
+    capMiss = new GStatsCntr("%s:capMiss", name);
+    confMiss = new GStatsCntr("%s:confMiss", name);
+}
+
+template<class State, class Addr_t, bool Energy>
 CacheAssoc<State, Addr_t, Energy>::CacheAssoc(int32_t size, int32_t assoc, int32_t blksize, int32_t addrUnit, const char *pStr)
     : CacheGeneric<State, Addr_t, Energy>(size, assoc, blksize, addrUnit)
 {
@@ -256,6 +265,14 @@ template<class State, class Addr_t, bool Energy>
 typename CacheAssoc<State, Addr_t, Energy>::Line *CacheAssoc<State, Addr_t, Energy>::findLinePrivate(Addr_t addr)
 {
     Addr_t tag = calcTag(addr);
+
+    // check for compulsary access using the above tag (actual address tag + index bits)
+    {
+        auto itr = compulsoryAccessSet.find(tag);
+        if(itr == compulsoryAccessSet.end()) {
+            compulsoryAccessSet.insert(tag);
+        }
+    }
 
     GI(Energy, goodInterface); // If modeling energy. Do not use this
     // interface directly. use readLine and

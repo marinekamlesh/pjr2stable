@@ -96,7 +96,7 @@ protected:
     GStatsCntr writeRetry;
 
     GStatsCntr invalDirty;
-    GStatsCntr allocDirty;
+    GStatsCntr allocDirty; 
 
 #ifdef SESC_ENERGY
     static unsigned cacheID;

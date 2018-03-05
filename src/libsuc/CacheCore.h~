@@ -30,6 +30,7 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #include "nanassert.h"
 #include "Snippets.h"
 #include "GStats.h"
+#include <set>
 
 enum    ReplacementPolicy  {LRU, RANDOM, NXLRU};
 
@@ -101,7 +102,7 @@ protected:
     virtual ~CacheGeneric() {}
 
     GStatsEnergy *getEnergy(const char *section, PowerGroup grp, const char *format, const char *name);
-    void createStats(const char *section, const char *name);
+    virtual void createStats(const char *section, const char *name);
 
 public:
     // Do not use this interface, use other create
@@ -277,17 +278,30 @@ protected:
     Line *mem;
     Line **content;
     int *lruCounter;
+    std::set<Addr_t> compulsoryAccessSet;
     ushort irand;
     ReplacementPolicy policy;
+
+    GStatsCntr *compMiss;
+    GStatsCntr *capMiss;
+    GStatsCntr *confMiss;
 
     friend class CacheGeneric<State, Addr_t, Energy>;
     CacheAssoc(int32_t size, int32_t assoc, int32_t blksize, int32_t addrUnit, const char *pStr);
 
     Line *findLinePrivate(Addr_t addr);
+    virtual void createStats(const char *section, const char *name);
+
 public:
     virtual ~CacheAssoc() {
+        delete [] lruCounter;
         delete [] content;
         delete [] mem;
+
+        delete compMiss;
+        delete capMiss;
+        delete confMiss;
+
     }
 
     // TODO: do an iterator. not this junk!!

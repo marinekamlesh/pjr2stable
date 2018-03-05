@@ -43,7 +43,7 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 // subsystem is the same size. This is not hard to fix, though. Any
 // candidates?
 
-MSHR<PAddr, SMPCache> *SMPCache::mutExclBuffer = NULL;
+MSHR<PAddr, SMPCache> *SMPCache::mutExclBuffer = NULL;l
 
 #ifdef SESC_ENERGY
 unsigned SMPCache::cacheID = 0;
