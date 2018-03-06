@@ -551,15 +551,14 @@ typename CacheDM<State, Addr_t, Energy>::Line
     if (line->getTag() == tag) {
         GI(tag,line->isValid());
         return line;
-    } else {
-          if (!compulsoryMiss && isInLru) {
-                confMiss->inc();
-          }
     }
 
     if (line->isLocked())
         return 0;
 
+    if (line->isValid() && !compulsoryMiss && isInLru) {
+        confMiss->inc();
+    }
     return line;
 }
 
