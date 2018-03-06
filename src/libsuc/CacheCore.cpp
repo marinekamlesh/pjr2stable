@@ -335,8 +335,8 @@ typename CacheAssoc<State, Addr_t, Energy>::Line
         }
     }
 
+    bool isInLru = false;
     {
-        bool isInLru = false;
         int index = 0;
         for (int i = 0; i < capacityMissCounter.size(); ++i) {
             if (capacityMissCounter[i] == tag) {
@@ -398,8 +398,13 @@ typename CacheAssoc<State, Addr_t, Energy>::Line
     }
     GI(lineFree, !(*lineFree)->isValid() || !(*lineFree)->isLocked());
 
-    if (lineHit)
+    if (lineHit) {
         return *lineHit;
+    } else {
+          if (!compulsoryMiss && isInLru) {
+                confMiss->inc();
+          }
+    }
 
     I(lineHit==0);
 
@@ -471,6 +476,15 @@ CacheDM<State, Addr_t, Energy>::CacheDM(int32_t size, int32_t blksize, int32_t a
 }
 
 template<class State, class Addr_t, bool Energy>
+void CacheDM<State, Addr_t, Energy>::createStats(const char *section, const char *name)
+{
+    CacheGeneric<State, Addr_t, Energy>::createStats(section, name);
+    compMiss = new GStatsCntr("%s:compMiss", name);
+    capMiss = new GStatsCntr("%s:capMiss", name);
+    confMiss = new GStatsCntr("%s:confMiss", name);
+}
+
+template<class State, class Addr_t, bool Energy>
 typename CacheDM<State, Addr_t, Energy>::Line *CacheDM<State, Addr_t, Energy>::findLinePrivate(Addr_t addr)
 {
     Addr_t tag = calcTag(addr);
@@ -498,12 +512,49 @@ typename CacheDM<State, Addr_t, Energy>::Line
     Addr_t tag = calcTag(addr);
     Line *line = content[calcIndex4Tag(tag)];
 
+    // check for compulsary access using the above tag (actual address tag + index bits)ool
+    bool compulsoryMiss = false;
+    {
+        auto itr = compulsoryAccessSet.find(tag);
+        if(itr == compulsoryAccessSet.end()) {
+            compulsoryAccessSet.insert(tag);
+            compMiss->inc();
+            compulsoryMiss = true;
+        }
+    }
+
+    bool isInLru = false;
+    {
+        int index = 0;
+        for (int i = 0; i < capacityMissCounter.size(); ++i) {
+            if (capacityMissCounter[i] == tag) {
+                isInLru = true;
+                index = i;
+                break;
+            }
+        }
+        if (isInLru) {
+            capacityMissCounter.erase(capacityMissCounter.begin() + index);
+        }
+        if (capacityMissCounter.size() == numLines) {
+            capacityMissCounter.pop_front();
+        }
+        capacityMissCounter.push_back(tag);
+        if (!compulsoryMiss && !isInLru) {
+            capMiss->inc();
+        }
+    }
+
     if (ignoreLocked)
         return line;
 
     if (line->getTag() == tag) {
         GI(tag,line->isValid());
         return line;
+    } else {
+          if (!compulsoryMiss && isInLru) {
+                confMiss->inc();
+          }
     }
 
     if (line->isLocked())

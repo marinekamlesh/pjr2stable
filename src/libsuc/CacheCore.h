@@ -323,6 +323,14 @@ class CacheDM : public CacheGeneric<State, Addr_t, Energy> {
     using CacheGeneric<State, Addr_t, Energy>::goodInterface;
 
 private:
+
+    std::deque<Addr_t> capacityMissCounter;
+    std::set<Addr_t> compulsoryAccessSet;
+
+    GStatsCntr *compMiss;
+    GStatsCntr *capMiss;
+    GStatsCntr *confMiss;
+
 public:
     typedef typename CacheGeneric<State, Addr_t, Energy>::CacheLine Line;
 
@@ -335,10 +343,16 @@ protected:
     CacheDM(int32_t size, int32_t blksize, int32_t addrUnit, const char *pStr);
 
     Line *findLinePrivate(Addr_t addr);
+    virtual void createStats(const char *section, const char *name);
+
 public:
     virtual ~CacheDM() {
         delete [] content;
         delete [] mem;
+
+        delete compMiss;
+        delete capMiss;
+        delete confMiss;
     };
 
     // TODO: do an iterator. not this junk!!
