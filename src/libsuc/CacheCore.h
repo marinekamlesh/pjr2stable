@@ -31,6 +31,7 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #include "Snippets.h"
 #include "GStats.h"
 #include <set>
+#include <deque>
 
 enum    ReplacementPolicy  {LRU, RANDOM, NXLRU};
 
@@ -277,7 +278,7 @@ protected:
 
     Line *mem;
     Line **content;
-    int *lruCounter;
+    std::deque<Addr_t> capacityMissCounter;
     std::set<Addr_t> compulsoryAccessSet;
     ushort irand;
     ReplacementPolicy policy;
@@ -294,14 +295,12 @@ protected:
 
 public:
     virtual ~CacheAssoc() {
-        delete [] lruCounter;
         delete [] content;
         delete [] mem;
 
         delete compMiss;
         delete capMiss;
         delete confMiss;
-
     }
 
     // TODO: do an iterator. not this junk!!
