@@ -30,8 +30,6 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #include "nanassert.h"
 #include "Snippets.h"
 #include "GStats.h"
-#include <set>
-#include <deque>
 
 enum    ReplacementPolicy  {LRU, RANDOM, NXLRU};
 
@@ -278,29 +276,19 @@ protected:
 
     Line *mem;
     Line **content;
-    std::deque<Addr_t> capacityMissCounter;
-    std::set<Addr_t> compulsoryAccessSet;
+
     ushort irand;
     ReplacementPolicy policy;
-
-    GStatsCntr *compMiss;
-    GStatsCntr *capMiss;
-    GStatsCntr *confMiss;
 
     friend class CacheGeneric<State, Addr_t, Energy>;
     CacheAssoc(int32_t size, int32_t assoc, int32_t blksize, int32_t addrUnit, const char *pStr);
 
     Line *findLinePrivate(Addr_t addr);
-    virtual void createStats(const char *section, const char *name);
 
 public:
     virtual ~CacheAssoc() {
         delete [] content;
         delete [] mem;
-
-        delete compMiss;
-        delete capMiss;
-        delete confMiss;
     }
 
     // TODO: do an iterator. not this junk!!
@@ -322,12 +310,6 @@ class CacheDM : public CacheGeneric<State, Addr_t, Energy> {
     using CacheGeneric<State, Addr_t, Energy>::numLines;
     using CacheGeneric<State, Addr_t, Energy>::goodInterface;
 
-private:
-
-    GStatsCntr *compMiss;
-    GStatsCntr *capMiss;
-    GStatsCntr *confMiss;
-
 public:
     typedef typename CacheGeneric<State, Addr_t, Energy>::CacheLine Line;
 
@@ -340,7 +322,6 @@ protected:
     CacheDM(int32_t size, int32_t blksize, int32_t addrUnit, const char *pStr);
 
     Line *findLinePrivate(Addr_t addr);
-    virtual void createStats(const char *section, const char *name);
 
 public:
     virtual ~CacheDM() {

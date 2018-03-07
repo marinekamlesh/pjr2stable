@@ -30,6 +30,8 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #include "SMPSystemBus.h"
 #include "MSHR.h"
 #include "Port.h"
+#include <set>
+#include <deque>
 
 #ifdef SESC_ENERGY
 #include "GEnergy.h"
@@ -48,6 +50,7 @@ private:
 	static const char *cohOutfile;
 
     void processReply(MemRequest *mreq);
+    void countMissTypes(PAddr addr);
     //void resolveSituation(SMPMemRequest *sreq);
 protected:
 
@@ -61,6 +64,8 @@ protected:
     MSHR<PAddr, SMPCache> *outsReq; // buffer for requests coming from upper levels
     //static MSHR<PAddr, SMPCache> *mutExclBuffer;
 
+    std::deque<uint32_t> capacityMissCounter;
+    std::set<uint32_t> compulsoryAccessSet;
 
     class Entry {
     public:
@@ -96,11 +101,11 @@ protected:
     GStatsCntr writeRetry;
 
     GStatsCntr invalDirty;
-    GStatsCntr allocDirty;
+    GStatsCntr allocDirty; 
 
     GStatsCntr compMiss;
     GStatsCntr capMiss;
-    GStatsCntr confMiss; 
+    GStatsCntr confMiss;
 
 #ifdef SESC_ENERGY
     static unsigned cacheID;

@@ -432,6 +432,45 @@ void SMPCache::read(MemRequest *mreq)
     doReadCB::scheduleAbs(nextSlot(), this, mreq);
 }
 
+bool SMPCache::countMissTypesAndReturnConflictMiss(PAddr addr) {
+
+// check for compulsary access using the above tag (actual address tag + index bits)
+    uint32_t tag = cache->calcTag(addr);
+    bool compulsoryMiss = false;
+    {
+        auto itr = compulsoryAccessSet.find(tag);
+        if(itr == compulsoryAccessSet.end()) {
+            compulsoryAccessSet.insert(tag);
+            compMiss.inc();
+            compulsoryMiss = true;
+        }
+    }
+
+    bool isInLru = false;
+    {
+        int index = 0;
+        for (int i = 0; i < capacityMissCounter.size(); ++i) {
+            if (capacityMissCounter[i] == tag) {
+                isInLru = true;
+                index = i;
+                break;
+            }
+        }
+        if (isInLru) {
+            capacityMissCounter.erase(capacityMissCounter.begin() + index);
+        }
+        if (capacityMissCounter.size() == cache.getNumLines()) {
+            capacityMissCounter.pop_front();
+        }
+        capacityMissCounter.push_back(tag);
+        if (!compulsoryMiss && !isInLru) {
+            capMiss.inc();
+        }
+    }
+
+    return !compulsoryMiss && isInLru;
+}
+
 void SMPCache::doRead(MemRequest *mreq)
 {
     PAddr addr = mreq->getPAddr();
@@ -466,6 +505,10 @@ void SMPCache::doRead(MemRequest *mreq)
     }
 
     GI(l, !l->isLocked());
+
+    if (countMissTypesAndReturnConflictMiss(addr)) {
+        confMiss.inc();
+    }
 
     readMiss.inc();
 
@@ -576,6 +619,10 @@ void SMPCache::doWrite(MemRequest *mreq)
     // doWrite in L2 is executed after line is invalidated
     if(!l && mreq->getMemOperation() == MemWrite) {
         mreq->mutateWriteToRead();
+    }
+
+    if (countMissTypesAndReturnConflictMiss(addr)) {
+        confMiss.inc();
     }
 
     writeMiss.inc();
@@ -1667,6 +1714,7 @@ SMPCache::Line *SMPCache::allocateLine(PAddr addr, CallbackBase *cb,
 {
     PAddr rpl_addr = 0;
     I(cache->findLineDebug(addr) == 0);
+
     Line *l = cache->findLine2Replace(addr);
 
     if(!l) {
