@@ -50,7 +50,11 @@ private:
 	static const char *cohOutfile;
 
     void processReply(MemRequest *mreq);
-    void countMissTypes(PAddr addr);
+
+    void handleReadMiss(PAddr addr, Line* l);
+    void handleWriteMiss(PAddr addr, Line* l);
+    void handleCacheHit(PAddr addr);
+
     //void resolveSituation(SMPMemRequest *sreq);
 protected:
 
@@ -64,8 +68,8 @@ protected:
     MSHR<PAddr, SMPCache> *outsReq; // buffer for requests coming from upper levels
     //static MSHR<PAddr, SMPCache> *mutExclBuffer;
 
-    std::deque<uint32_t> capacityMissCounter;
     std::set<uint32_t> compulsoryAccessSet;
+    std::deque<uint32_t> capacityMissCounter;
 
     class Entry {
     public:
@@ -103,9 +107,12 @@ protected:
     GStatsCntr invalDirty;
     GStatsCntr allocDirty; 
 
-    GStatsCntr compMiss;
-    GStatsCntr capMiss;
-    GStatsCntr confMiss;
+    GStatsCntr readCompMiss;
+    GStatsCntr writeCompMiss;
+    GStatsCntr readReplMiss;
+    GStatsCntr writeReplMiss;
+    GStatsCntr readCoheMiss;
+    GStatsCntr writeCoheMiss;
 
 #ifdef SESC_ENERGY
     static unsigned cacheID;

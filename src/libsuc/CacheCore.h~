@@ -117,6 +117,7 @@ public:
     // when locked parameter is false, it would try to remove even locked lines
 
     virtual CacheLine *findLine2Replace(Addr_t addr, bool ignoreLocked=false)=0;
+    virtual CacheLine *findLine2ReplaceWithoutReorder(Addr_t addr, bool ignoreLocked=false) = 0;
 
     // TO DELETE if flush from Cache.cpp is cleared.  At least it should have a
     // cleaner interface so that Cache.cpp does not touch the internals.
@@ -299,6 +300,7 @@ public:
     }
 
     Line *findLine2Replace(Addr_t addr, bool ignoreLocked=false);
+    Line *findLine2ReplaceWithoutReorder(Addr_t addr, bool ignoreLocked=false);
 };
 
 #ifdef SESC_ENERGY
@@ -327,10 +329,6 @@ public:
     virtual ~CacheDM() {
         delete [] content;
         delete [] mem;
-
-        delete compMiss;
-        delete capMiss;
-        delete confMiss;
     };
 
     // TODO: do an iterator. not this junk!!
@@ -341,6 +339,7 @@ public:
     }
 
     Line *findLine2Replace(Addr_t addr, bool ignoreLocked=false);
+    Line *findLine2ReplaceWithoutReorder(Addr_t addr, bool ignoreLocked=false);
 };
 
 #ifdef SESC_ENERGY
@@ -379,6 +378,7 @@ public:
     }
 
     Line *findLine2Replace(Addr_t addr, bool ignoreLocked=false);
+    Line *findLine2ReplaceWithoutReorder(Addr_t addr, bool ignoreLocked=false);
 };
 
 
@@ -386,14 +386,20 @@ template<class Addr_t=uint32_t>
 class StateGeneric {
 private:
     Addr_t tag;
+    Addr_t prevTag;
 
 public:
+
     virtual ~StateGeneric() {
         tag = 0;
+        prevTag = 0;
     }
 
     Addr_t getTag() const {
         return tag;
+    }
+    Addr_t getPrevTag() const {
+        return prevTag;
     }
     void setTag(Addr_t a) {
         I(a);
@@ -401,6 +407,7 @@ public:
     }
     void clearTag() {
         tag = 0;
+        prevTag = 0;
     }
     void initialize(void *c) {
         clearTag();
@@ -411,7 +418,8 @@ public:
     }
 
     virtual void invalidate() {
-        clearTag();
+        prevTag = tag;
+        tag = 0;
     }
 
     virtual bool isLocked() const {

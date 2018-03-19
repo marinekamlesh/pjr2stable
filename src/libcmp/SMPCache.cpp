@@ -95,9 +95,12 @@ SMPCache::SMPCache(SMemorySystem *dms, const char *section, const char *name)
     , writeRetry("%s:writeRetry", name)
     , invalDirty("%s:invalDirty", name)
     , allocDirty("%s:allocDirty", name)
-    , compMiss("%s:compMiss", name)
-    , capMiss("%s:capMiss", name)
-    , confMiss("%s:confMiss", name)
+    , readCompMiss("%s:readCompMiss", name)
+    , writeCompMiss("%s:writeCompMiss", name)
+    , readReplMiss("%s:readReplMiss", name)
+    , writeReplMiss("%s:writeReplMiss", name)
+    , readCoheMiss("%s:readCoheMiss", name)
+    , writeCoheMiss("%s:writeCoheMiss", name)
 {
     MemObj *lowerLevel = NULL;
     //printf("%d\n", dms->getPID());
@@ -432,43 +435,85 @@ void SMPCache::read(MemRequest *mreq)
     doReadCB::scheduleAbs(nextSlot(), this, mreq);
 }
 
-bool SMPCache::countMissTypesAndReturnConflictMiss(PAddr addr) {
+void SMPCache::handleReadMiss(PAddr addr) {
 
-// check for compulsary access using the above tag (actual address tag + index bits)
-    uint32_t tag = cache->calcTag(addr);
-    bool compulsoryMiss = false;
-    {
-        auto itr = compulsoryAccessSet.find(tag);
-        if(itr == compulsoryAccessSet.end()) {
-            compulsoryAccessSet.insert(tag);
-            compMiss.inc();
-            compulsoryMiss = true;
-        }
+    uint32_t tagAndIndex = cache->calcTag(addr);
+    Line* l = cache->findLine2ReplaceWithoutReorder(addr, false);
+    if (l && !l->isValid() && l->getPrevTag() == tagAndIndex) {
+        readCoheMiss.inc();
+        return;
     }
 
-    bool isInLru = false;
-    {
-        int index = 0;
-        for (int i = 0; i < capacityMissCounter.size(); ++i) {
-            if (capacityMissCounter[i] == tag) {
-                isInLru = true;
-                index = i;
-                break;
-            }
-        }
-        if (isInLru) {
-            capacityMissCounter.erase(capacityMissCounter.begin() + index);
-        }
-        if (capacityMissCounter.size() == cache->getNumLines()) {
-            capacityMissCounter.pop_front();
-        }
-        capacityMissCounter.push_back(tag);
-        if (!compulsoryMiss && !isInLru) {
-            capMiss.inc();
-        }
+    // check for compulsary access using the above tag (actual address tag + index bits)
+    if(compulsoryAccessSet.find(tagAndIndex) == compulsoryAccessSet.end()) {
+        compulsoryAccessSet.insert(tagAndIndex);
+        readCompMiss.inc();
+        return;
     }
 
-    return !compulsoryMiss && isInLru;
+    // now check for replacement or conflict miss
+    bool isReplacementMiss = true;
+    for (int i = 0; i < capacityMissCounter.size(); ++i) {
+        if (capacityMissCounter[i] == tagAndIndex) {
+            capacityMissCounter.erase(capacityMissCounter.begin() + i);
+            isReplacementMiss = false;
+            break;
+        }
+    }
+    if (capacityMissCounter.size() == cache->getNumLines()) {
+        capacityMissCounter.pop_front();
+    }
+    capacityMissCounter.push_back(tagAndIndex);
+
+    readReplMiss.inc();
+}
+
+void SMPCache::handleWriteMiss(PAddr addr) {
+
+    uint32_t tagAndIndex = cache->calcTag(addr);
+
+    Line* l = cache->findLine2ReplaceWithoutReorder(addr, false);
+    if (l && !l->isValid() && l->getPrevTag() == tagAndIndex) {
+        writeCoheMiss.inc();
+        return;
+    }
+
+    // check for compulsary access using the above tag (actual address tag + index bits)
+    if(compulsoryAccessSet.find(tagAndIndex) == compulsoryAccessSet.end()) {
+        compulsoryAccessSet.insert(tagAndIndex);
+        writeCompMiss.inc();
+        return;
+    }
+
+    // now check for replacement or conflict miss
+    bool isReplacementMiss = true;
+    for (int i = 0; i < capacityMissCounter.size(); ++i) {
+        if (capacityMissCounter[i] == tagAndIndex) {
+            capacityMissCounter.erase(capacityMissCounter.begin() + i);
+            isReplacementMiss = false;
+            break;
+        }
+    }
+    if (capacityMissCounter.size() == cache->getNumLines()) {
+        capacityMissCounter.pop_front();
+    }
+    capacityMissCounter.push_back(tagAndIndex);
+
+    writeReplMiss.inc();
+}
+
+void SMPCache::handleCacheHit(PAddr addr) {
+    uint32_t tagAndIndex = cache->calcTag(addr);
+    for (int i = 0; i < capacityMissCounter.size(); ++i) {
+        if (capacityMissCounter[i] == tagAndIndex) {
+            capacityMissCounter.erase(capacityMissCounter.begin() + i);
+            break;
+        }
+    }
+    if (capacityMissCounter.size() == cache->getNumLines()) {
+        capacityMissCounter.pop_front();
+    }
+    capacityMissCounter.push_back(tagAndIndex);
 }
 
 void SMPCache::doRead(MemRequest *mreq)
@@ -485,6 +530,7 @@ void SMPCache::doRead(MemRequest *mreq)
     //sdprint = true;
 
     if (l && l->canBeRead()) {
+        handleCacheHit(addr);
         readHit.inc();
 #ifdef SESC_ENERGY
         rdEnergy[0]->inc();
@@ -506,10 +552,7 @@ void SMPCache::doRead(MemRequest *mreq)
 
     GI(l, !l->isLocked());
 
-    if (countMissTypesAndReturnConflictMiss(addr)) {
-        confMiss.inc();
-    }
-
+    handleReadMiss(addr);
     readMiss.inc();
 
 #if (defined TRACK_MPKI)
@@ -563,6 +606,7 @@ void SMPCache::doWriteAgain(MemRequest *mreq) {
     Line *l = cache->writeLine(addr);
     IJ(l && l->canBeWritten());
     if(l && l->canBeWritten()) {
+        handleCacheHit(addr);
         writeHit.inc();
 #ifdef SESC_ENERGY
         wrEnergy[0]->inc();
@@ -587,6 +631,7 @@ void SMPCache::doWrite(MemRequest *mreq)
     }
 
     if (l && l->canBeWritten()) {
+        handleCacheHit(addr);
         writeHit.inc();
 #ifdef SESC_ENERGY
         wrEnergy[0]->inc();
@@ -621,10 +666,7 @@ void SMPCache::doWrite(MemRequest *mreq)
         mreq->mutateWriteToRead();
     }
 
-    if (countMissTypesAndReturnConflictMiss(addr)) {
-        confMiss.inc();
-    }
-
+    handleWriteMiss(addr);
     writeMiss.inc();
 
 #ifdef SESC_ENERGY
